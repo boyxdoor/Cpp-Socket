@@ -10,33 +10,62 @@ using namespace std;
 enum CMD
 {
 	CMD_LOGIN,
+	CMD_LOGIN_RESULT,
 	CMD_LOGOUT,
+	CMD_LOGOUT_RESULT,
 	CMD_ERROR
 };
 //消息头
-struct DataHeader
+class DataHeader
 {
+public:
 	short dataLength;//数据长度
 	short cmd;		//命令
 };
 //DataPackage
-struct Login
+class Login : public DataHeader
 {
+public:
+	Login()
+	{
+		dataLength = sizeof(Login);
+		cmd = CMD_LOGIN;
+	}
 	char userName[32];
 	char PassWord[32];
 };
 //登入结果，是否登陆成功
-struct LoginResult
+class LoginResult : public DataHeader
 {
+public:
+	LoginResult()
+	{
+		dataLength = sizeof(LoginResult);
+		cmd = CMD_LOGIN_RESULT;
+		result = 0;	//默认0代表正常
+	}
 	int result;
 };
-struct Logout
+class Logout : public DataHeader
 {
+public:
+	Logout()
+	{
+		dataLength = sizeof(Logout);
+		cmd = CMD_LOGOUT;
+	}
 	char userName[32];
 };
 //登出结果
-struct LogoutResult
+class LogoutResult : public DataHeader
 {
+public:
+	LogoutResult()
+	{
+		dataLength = sizeof(LogoutResult);
+		cmd = CMD_LOGOUT_RESULT;
+		result = 0;
+	}
 	int result;
 };
 
@@ -85,29 +114,25 @@ int main()
 		}
 		else if (0 == strcmp(cmdBuf, "login"))
 		{
-			Login login{ "ljd","ljdmm" };
-			DataHeader dh{sizeof(Login),CMD_LOGIN };
-//5 向服务器发送请求
-			send(_sock,(const char*)& dh, sizeof(DataHeader), 0);//包头
-			send(_sock, (const char*)& login, sizeof(Login), 0);//包体
+			//5 向服务器发送请求
+			Login login;
+			strcpy(login.userName, "ljd");
+			strcpy(login.PassWord, "ljdmm");
+			//包体包含了包头
+			send(_sock, (const char*)& login, sizeof(Login), 0);
 //6 接收服务器信息 recv
-			DataHeader retHeader{};
 			LoginResult loginRet{};
-			recv(_sock, (char*)& retHeader, sizeof(DataHeader), 0);
 			recv(_sock, (char*)& loginRet, sizeof(LoginResult), 0);
 			cout << "LoginResult:" << loginRet.result << endl;
 		}
 		else if (0 == strcmp(cmdBuf, "logout"))
 		{
-			Logout logout{};
-			DataHeader dh{ sizeof(Logout),CMD_LOGOUT };
+			Logout logout;
+			strcpy(logout.userName, "ljd");
 //5 向服务器发送请求
-			send(_sock, (const char*)& dh, sizeof(DataHeader), 0);//包头
 			send(_sock, (const char*)& logout, sizeof(Logout), 0);//包体
 //6 接收服务器信息 recv
-			DataHeader retHeader{};
 			LogoutResult logoutRet{};
-			recv(_sock, (char*)& retHeader, sizeof(DataHeader), 0);
 			recv(_sock, (char*)& logoutRet, sizeof(LogoutResult), 0);
 			cout << "LogoutResult:" << logoutRet.result << endl;
 		}

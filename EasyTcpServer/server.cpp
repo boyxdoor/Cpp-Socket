@@ -11,33 +11,62 @@ using namespace std;
 enum CMD
 {
 	CMD_LOGIN,
+	CMD_LOGIN_RESULT,
 	CMD_LOGOUT,
+	CMD_LOGOUT_RESULT,
 	CMD_ERROR
 };
 //消息头
-struct DataHeader
+class DataHeader
 {
+public:
 	short dataLength;//数据长度
 	short cmd;		//命令
 };
 //DataPackage
-struct Login
+class Login: public DataHeader
 {
+public:
+	Login()
+	{
+		dataLength = sizeof(Login);
+		cmd = CMD_LOGIN;
+	}
 	char userName[32];
 	char PassWord[32];
 };
 //登入结果，是否登陆成功
-struct LoginResult
+class LoginResult : public DataHeader
 {
+public:
+	LoginResult()
+	{
+		dataLength = sizeof(LoginResult);
+		cmd = CMD_LOGIN_RESULT;
+		result = 0;	//默认0代表正常
+	}
 	int result;
 };
-struct Logout
+class Logout : public DataHeader
 {
+public:
+	Logout()
+	{
+		dataLength = sizeof(Logout);
+		cmd = CMD_LOGOUT;
+	}
 	char userName[32];
 };
 //登出结果
-struct LogoutResult
+class LogoutResult : public DataHeader
 {
+public:
+	LogoutResult()
+	{
+		dataLength = sizeof(LogoutResult);
+		cmd = CMD_LOGOUT_RESULT;
+		result = 0;
+	}
 	int result;
 };
 
@@ -91,28 +120,30 @@ int main()
 	while (true)
 	{
 		DataHeader header{};
-		//5 接收客户端的请求
+		//5 接收客户端的请求,传来的包大于接收长度，后面的留到接下来接收
 		int nLen = recv(_cSock, (char*)& header, sizeof(DataHeader), 0);
 		if (nLen <= 0)
 		{
 			cout << "客户端已退出，任务结束。" << endl;
 			break;
 		}
-		cout << "收到命令：" << header.cmd<<", 数据长度："
-			<<header.dataLength<<endl;
 		//6 处理请求
 		switch (header.cmd)
 		{
 		case CMD_LOGIN:
 		{
 			Login login{};
-			//接受客户端请求
-			recv(_cSock, (char*)&login, sizeof(Login), 0);
+			//接受客户端请求，包头已经读取，偏移取包体其他信息
+			recv(_cSock, (char*)&login+sizeof(DataHeader), 
+				sizeof(Login)- sizeof(DataHeader), 0);
+			cout << "收到命令：CMD_LOGIN"  
+				<< ", 数据长度："<< header.dataLength 
+				<< ", userName="<<login.userName
+				<<", PassWord="<<login.PassWord
+				<<endl;
 			//忽略判断用户密码是否正确的步骤了
-			LoginResult ret{0};
-			//返回消息头
-			send(_cSock, (const char *)& header, sizeof(DataHeader), 0);
-			//返回登录结果
+			LoginResult ret;
+			//7 send 向客户端发送一条数据
 			send(_cSock, (char*)& ret, sizeof(LoginResult), 0);
 		}
 		break;
@@ -120,12 +151,15 @@ int main()
 		{
 			Logout logout{};
 			//接受客户端请求
-			recv(_cSock, (char*)&logout, sizeof(Logout), 0);
+			recv(_cSock, (char*)&logout + sizeof(DataHeader), 
+				sizeof(Logout) - sizeof(DataHeader), 0);
+			cout << "收到命令：CMD_LOGOUT"
+				<< ", 数据长度：" << header.dataLength
+				<< ", userName=" << logout.userName
+				<< endl;
 			//忽略判断用户密码是否正确的步骤了
-			LogoutResult ret{ 1 };
-			////7 send 向客户端发送一条数据 返回消息头
-			send(_cSock, (const char *)& header, sizeof(DataHeader), 0);
-			//返回登录结果
+			LogoutResult ret;
+			//7 send 向客户端发送一条数据
 			send(_cSock, (char*)& ret, sizeof(LogoutResult), 0);
 		}
 		break;
