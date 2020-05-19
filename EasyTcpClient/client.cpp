@@ -6,11 +6,40 @@
 #pragma comment(lib,"ws2_32.lib")	//仅windows平台可以
 
 using namespace std;
-struct DataPackage
+
+enum CMD
 {
-	int age;
-	char name[32];
+	CMD_LOGIN,
+	CMD_LOGOUT,
+	CMD_ERROR
 };
+//消息头
+struct DataHeader
+{
+	short dataLength;//数据长度
+	short cmd;		//命令
+};
+//DataPackage
+struct Login
+{
+	char userName[32];
+	char PassWord[32];
+};
+//登入结果，是否登陆成功
+struct LoginResult
+{
+	int result;
+};
+struct Logout
+{
+	char userName[32];
+};
+//登出结果
+struct LogoutResult
+{
+	int result;
+};
+
 int main()
 {
 //启动Windows socket 2.x环境
@@ -54,18 +83,37 @@ int main()
 			cout << "收到退出命令，任务结束。" << endl;
 			break;
 		}
+		else if (0 == strcmp(cmdBuf, "login"))
+		{
+			Login login{ "ljd","ljdmm" };
+			DataHeader dh{sizeof(Login),CMD_LOGIN };
+//5 向服务器发送请求
+			send(_sock,(const char*)& dh, sizeof(DataHeader), 0);//包头
+			send(_sock, (const char*)& login, sizeof(Login), 0);//包体
+//6 接收服务器信息 recv
+			DataHeader retHeader{};
+			LoginResult loginRet{};
+			recv(_sock, (char*)& retHeader, sizeof(DataHeader), 0);
+			recv(_sock, (char*)& loginRet, sizeof(LoginResult), 0);
+			cout << "LoginResult:" << loginRet.result << endl;
+		}
+		else if (0 == strcmp(cmdBuf, "logout"))
+		{
+			Logout logout{};
+			DataHeader dh{ sizeof(Logout),CMD_LOGOUT };
+//5 向服务器发送请求
+			send(_sock, (const char*)& dh, sizeof(DataHeader), 0);//包头
+			send(_sock, (const char*)& logout, sizeof(Logout), 0);//包体
+//6 接收服务器信息 recv
+			DataHeader retHeader{};
+			LogoutResult logoutRet{};
+			recv(_sock, (char*)& retHeader, sizeof(DataHeader), 0);
+			recv(_sock, (char*)& logoutRet, sizeof(LogoutResult), 0);
+			cout << "LogoutResult:" << logoutRet.result << endl;
+		}
 		else
 		{
-//5 向服务器发送请求
-			send(_sock, cmdBuf, strlen(cmdBuf) + 1, 0);
-		}
-//6 接收服务器信息 recv
-		char recvBuf[128]{};
-		int nlen = recv(_sock, recvBuf, 128, 0);
-		if (nlen > 0)
-		{
-			DataPackage* dp = (DataPackage*)recvBuf;
-			cout << "接收到数据：年龄="<<dp->age<<", 姓名="<<dp->name<<endl;
+			cout << "不支持的命令，请重新输入。" << endl;
 		}
 	}
 

@@ -7,11 +7,40 @@
 #pragma comment(lib,"ws2_32.lib")	//仅windows平台可以
 
 using namespace std;
-struct DataPackage
+
+enum CMD
 {
-	int age;
-	char name[32];
+	CMD_LOGIN,
+	CMD_LOGOUT,
+	CMD_ERROR
 };
+//消息头
+struct DataHeader
+{
+	short dataLength;//数据长度
+	short cmd;		//命令
+};
+//DataPackage
+struct Login
+{
+	char userName[32];
+	char PassWord[32];
+};
+//登入结果，是否登陆成功
+struct LoginResult
+{
+	int result;
+};
+struct Logout
+{
+	char userName[32];
+};
+//登出结果
+struct LogoutResult
+{
+	int result;
+};
+
 int main()
 {
 	//启动Windows socket 2.x环境
@@ -61,28 +90,51 @@ int main()
 
 	while (true)
 	{
+		DataHeader header{};
 		//5 接收客户端的请求
-		int nLen = recv(_cSock, _recvBuf, 128, 0);
+		int nLen = recv(_cSock, (char*)& header, sizeof(DataHeader), 0);
 		if (nLen <= 0)
 		{
 			cout << "客户端已退出，任务结束。" << endl;
 			break;
 		}
-		cout << "收到命令：" << _recvBuf<<endl;
+		cout << "收到命令：" << header.cmd<<", 数据长度："
+			<<header.dataLength<<endl;
 		//6 处理请求
-		if (0 == strcmp(_recvBuf, "getInfo"))
+		switch (header.cmd)
 		{
-			//7 send 向客户端发送一条数据
-			DataPackage dp{80,"张国荣"};
-			send(_cSock, (const char *)& dp, sizeof(DataPackage), 0);//结尾符一并发过去
-		}
-		else
+		case CMD_LOGIN:
 		{
-			//7 send 向客户端发送一条数据
-			const char msgBuf[] = "???";
-			send(_cSock, msgBuf, strlen(msgBuf) + 1, 0);//结尾符一并发过去
+			Login login{};
+			//接受客户端请求
+			recv(_cSock, (char*)&login, sizeof(Login), 0);
+			//忽略判断用户密码是否正确的步骤了
+			LoginResult ret{0};
+			//返回消息头
+			send(_cSock, (const char *)& header, sizeof(DataHeader), 0);
+			//返回登录结果
+			send(_cSock, (char*)& ret, sizeof(LoginResult), 0);
 		}
-
+		break;
+		case CMD_LOGOUT:
+		{
+			Logout logout{};
+			//接受客户端请求
+			recv(_cSock, (char*)&logout, sizeof(Logout), 0);
+			//忽略判断用户密码是否正确的步骤了
+			LogoutResult ret{ 1 };
+			////7 send 向客户端发送一条数据 返回消息头
+			send(_cSock, (const char *)& header, sizeof(DataHeader), 0);
+			//返回登录结果
+			send(_cSock, (char*)& ret, sizeof(LogoutResult), 0);
+		}
+		break;
+		default:
+			header.cmd = CMD_ERROR;
+			header.dataLength = 0;
+			send(_cSock, (const char *)& header, sizeof(DataHeader), 0);
+			break;
+		}
 	}
 	
 	//8 关闭套接字closesocket
