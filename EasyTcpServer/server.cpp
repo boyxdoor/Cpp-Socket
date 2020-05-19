@@ -7,7 +7,11 @@
 #pragma comment(lib,"ws2_32.lib")	//仅windows平台可以
 
 using namespace std;
-
+struct DataPackage
+{
+	int age;
+	char name[32];
+};
 int main()
 {
 	//启动Windows socket 2.x环境
@@ -45,7 +49,7 @@ int main()
 	int nAddrLen = sizeof(sockaddr_in);
 	SOCKET _cSock = INVALID_SOCKET;
 
-
+	//客户端_cSock,服务端_sock
 	_cSock = accept(_sock, (sockaddr*)&clientAddr, &nAddrLen);
 	if (INVALID_SOCKET == _cSock)
 	{
@@ -66,17 +70,11 @@ int main()
 		}
 		cout << "收到命令：" << _recvBuf<<endl;
 		//6 处理请求
-		if (0 == strcmp(_recvBuf, "getName"))
+		if (0 == strcmp(_recvBuf, "getInfo"))
 		{
 			//7 send 向客户端发送一条数据
-			const char msgBuf[] = "Xiao Liang";
-			send(_cSock, msgBuf, strlen(msgBuf) + 1, 0);//结尾符一并发过去
-		}
-		else if (0 == strcmp(_recvBuf, "getAge"))
-		{
-			//7 send 向客户端发送一条数据
-			const char msgBuf[] = "80";
-			send(_cSock, msgBuf, strlen(msgBuf) + 1, 0);//结尾符一并发过去
+			DataPackage dp{80,"张国荣"};
+			send(_cSock, (const char *)& dp, sizeof(DataPackage), 0);//结尾符一并发过去
 		}
 		else
 		{

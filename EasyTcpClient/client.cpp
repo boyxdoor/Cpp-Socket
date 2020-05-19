@@ -6,7 +6,11 @@
 #pragma comment(lib,"ws2_32.lib")	//仅windows平台可以
 
 using namespace std;
-
+struct DataPackage
+{
+	int age;
+	char name[32];
+};
 int main()
 {
 //启动Windows socket 2.x环境
@@ -56,12 +60,12 @@ int main()
 			send(_sock, cmdBuf, strlen(cmdBuf) + 1, 0);
 		}
 //6 接收服务器信息 recv
-		char recvBuf[128] = {};
+		char recvBuf[128]{};
 		int nlen = recv(_sock, recvBuf, 128, 0);
 		if (nlen > 0)
 		{
-
-			cout << "接收到数据："<<recvBuf<<endl;
+			DataPackage* dp = (DataPackage*)recvBuf;
+			cout << "接收到数据：年龄="<<dp->age<<", 姓名="<<dp->name<<endl;
 		}
 	}
 
