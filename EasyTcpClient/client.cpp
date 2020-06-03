@@ -2,6 +2,7 @@
 #include <WinSock2.h>
 #include <Windows.h>
 #include <iostream>
+#include <thread>
 
 #pragma comment(lib,"ws2_32.lib")	//仅windows平台可以
 
@@ -141,6 +142,45 @@ int processor(SOCKET _cSock)
 	}
 }
 
+//线程运行标志
+bool g_bRun = true;
+
+//线程函数接受并处理用户输入的命令
+void cmdThread(SOCKET sock)
+{
+	while (true)
+	{
+		char cmdBuf[256] = {};
+		cin >> cmdBuf;
+		if (0 == strcmp(cmdBuf, "exit"))
+		{
+			g_bRun = false;
+			cout << "退出cmdThread线程" << endl;
+			break;
+		}
+		else if (0 == strcmp(cmdBuf, "login"))
+		{
+			Login login;
+			strcpy(login.userName, "ljd");
+			strcpy(login.PassWord, "ljd");
+			send(sock, reinterpret_cast<const char*>(&login),
+				sizeof(Login), 0);
+		}
+		else if (0 == strcmp(cmdBuf, "logout"))
+		{
+			Logout logout;
+			strcpy(logout.userName, "ljd");
+			send(sock, reinterpret_cast<const char*>(&logout),
+				sizeof(Login), 0);
+		}
+		else
+		{
+			cout << "不支持的命令" << endl;
+		}
+	}
+	
+}
+
 int main()
 {
 //启动Windows socket 2.x环境
@@ -173,7 +213,11 @@ int main()
 		cout << "连接socket成功。" << endl;
 	}
 	
-	while (true)
+	//启动线程
+	thread t1(cmdThread,_sock);
+	t1.detach();
+
+	while (g_bRun)
 	{
 		fd_set fdReads;
 		FD_ZERO(&fdReads);
@@ -194,15 +238,10 @@ int main()
 				break;
 			}
 		}
+		//线程thread
 
-		cout << "空闲时间处理其他业务.." << endl;
+		//cout << "空闲时间处理其他业务.." << endl;
 
-		Login login;
-		strcpy(login.userName, "ljd");
-		strcpy(login.PassWord, "ljd");
-		send(_sock, reinterpret_cast<const char*>(&login),
-			sizeof(Login), 0);
-		//Sleep(1000);
 	}
 
 //7 关闭套接字closesocket
