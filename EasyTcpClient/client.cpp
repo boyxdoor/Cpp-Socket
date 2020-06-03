@@ -171,7 +171,7 @@ void cmdThread(SOCKET sock)
 			Logout logout;
 			strcpy(logout.userName, "ljd");
 			send(sock, reinterpret_cast<const char*>(&logout),
-				sizeof(Login), 0);
+				sizeof(Logout), 0);
 		}
 		else
 		{

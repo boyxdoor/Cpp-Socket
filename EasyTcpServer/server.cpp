@@ -126,8 +126,8 @@ int processor(SOCKET _cSock)
 		recv(_cSock, szRecv + sizeof(DataHeader),
 			header->dataLength - sizeof(DataHeader), 0);
 		Logout* logout = reinterpret_cast<Logout*>(szRecv);
-		cout << "收到命令：CMD_LOGOUT"
-			<< ", 数据长度：" << header->dataLength
+		cout << "收到客户端<Socket=" << _cSock
+			<< ">请求：CMD_LOGOUT, 数据长度：" << header->dataLength
 			<< ", userName=" << logout->userName
 			<< endl;
 		//忽略判断用户密码是否正确的步骤了
@@ -202,7 +202,7 @@ int main()
 			FD_SET(g_clients[n], &fdRead);
 		}
 
-		timeval t = { 0,0 };
+		timeval t = { 1,0 };
 		//为兼容其他操作系统的 伯克利 socket,Windows下select()的第一个参数无意义;
 		//select()第一个参数nfds是一个整数，是指fd_set集合中描述符最大值+1;
 		//对应TCP协议中，接收方发送确认号是已发送数据序号的下一个。
@@ -260,7 +260,7 @@ int main()
 				}
 			}
 		}
-		cout << "空闲时间处理其他业务.." << endl;
+		//cout << "空闲时间处理其他业务.." << endl;
 	}
 	//清理已链接的客户端套接字
 	for (size_t n = g_clients.size() - 1; n >= 0; n--)
