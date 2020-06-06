@@ -1,6 +1,18 @@
 #define WIN32_LEAN_AND_MEAN	//尽量避免头文件中库中的冲突
+
+#ifdef _WIN32
 #include <WinSock2.h>
 #include <Windows.h>
+#else
+#include <unistd.h> //uni std
+#include <arpa/inet.h>
+#include <string.h>
+
+#define SOCKET int
+#define INVALID_SOCKET  (SOCKET)(~0)
+#define SOCKET_ERROR            (-1)
+#endif
+
 #include <iostream>
 #include <thread>
 
@@ -104,7 +116,7 @@ int processor(SOCKET _cSock)
 			header->dataLength - sizeof(DataHeader), 0);
 		//Login包含header所以把之前在缓存区的数据一并纳入login
 		LoginResult* login = reinterpret_cast<LoginResult*>(szRecv);
-		cout << "收到服务器消息：CMD_LOGIN_RESULT, 数据长度：" 
+		cout << "收到服务器消息：CMD_LOGIN_RESULT, 数据长度："
 			<< header->dataLength
 			<< endl;
 	}
@@ -140,6 +152,7 @@ int processor(SOCKET _cSock)
 	}
 	break;
 	}
+	return 0;
 }
 
 //线程运行标志
@@ -178,17 +191,19 @@ void cmdThread(SOCKET sock)
 			cout << "不支持的命令" << endl;
 		}
 	}
-	
+
 }
 
 int main()
 {
-//启动Windows socket 2.x环境
+#ifdef _WIN32
+	//启动Windows socket 2.x环境
 	WORD ver = MAKEWORD(2, 2);
 	WSADATA dat;
 	WSAStartup(ver, &dat);
-//------------------
-//1 建立一个socket
+#endif
+	//------------------
+	//1 建立一个socket
 	SOCKET _sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (INVALID_SOCKET == _sock)
 	{
@@ -198,11 +213,15 @@ int main()
 	{
 		cout << "建立socket成功。" << endl;
 	}
-//2 连接服务器 connect
+	//2 连接服务器 connect
 	sockaddr_in _sin = {};
 	_sin.sin_family = AF_INET;
 	_sin.sin_port = htons(4567);
-	_sin.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
+#ifdef _WIN32
+	_sin.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");//Windows连接本机地址
+#else
+	_sin.sin_addr.s_addr = inet_addr("192.168.74.1");//linux系统下连接Windows的IP地址
+#endif
 	int ret = connect(_sock, (sockaddr*)&_sin, sizeof(sockaddr_in));
 	if (SOCKET_ERROR == ret)
 	{
@@ -212,9 +231,9 @@ int main()
 	{
 		cout << "连接socket成功。" << endl;
 	}
-	
+
 	//启动线程
-	thread t1(cmdThread,_sock);
+	thread t1(cmdThread, _sock);
 	t1.detach();
 
 	while (g_bRun)
@@ -223,7 +242,7 @@ int main()
 		FD_ZERO(&fdReads);
 		FD_SET(_sock, &fdReads);
 		timeval t = { 1,0 };
-		int ret = select(_sock, &fdReads, 0, 0, &t);
+		int ret = select(_sock+1, &fdReads, 0, 0, &t);
 		if (ret < 0)
 		{
 			cout << "select任务结束1" << endl;
@@ -243,12 +262,16 @@ int main()
 		//cout << "空闲时间处理其他业务.." << endl;
 
 	}
-
-//7 关闭套接字closesocket
+#ifdef _WIN32
+	//7 关闭套接字closesocket
 	closesocket(_sock);
 	//------------------
-//清除Windows socket环境
+	//清除Windows socket环境
 	WSACleanup();
+#else
+	//linux关闭
+	close(_sock);
+#endif
 	cout << "已退出。" << endl;
 	getchar();
 	return 0;
