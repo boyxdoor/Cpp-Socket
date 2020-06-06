@@ -1,8 +1,8 @@
-#define WIN32_LEAN_AND_MEAN	//尽量避免头文件中库中的冲突
-
 #ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN    //尽量避免头文件中库中的冲突
 #include <WinSock2.h>
 #include <Windows.h>
+#pragma comment(lib,"ws2_32.lib")    //仅windows平台可以
 #else
 #include <unistd.h> //uni std
 #include <arpa/inet.h>
@@ -16,7 +16,7 @@
 #include <iostream>
 #include <thread>
 
-#pragma comment(lib,"ws2_32.lib")	//仅windows平台可以
+
 
 using namespace std;
 
@@ -34,7 +34,7 @@ class DataHeader
 {
 public:
 	short dataLength;//数据长度
-	short cmd;		//命令
+	short cmd;        //命令
 };
 //DataPackage
 class Login : public DataHeader
@@ -56,7 +56,7 @@ public:
 	{
 		dataLength = sizeof(LoginResult);
 		cmd = CMD_LOGIN_RESULT;
-		result = 0;	//默认0代表正常
+		result = 0;    //默认0代表正常
 	}
 	int result;
 };
@@ -99,7 +99,7 @@ int processor(SOCKET _cSock)
 	//缓冲区
 	char szRecv[1024] = {};
 	//5 接收客户端的请求,传来的包大于接收长度，后面的留到接下来接收
-	int nLen = recv(_cSock, szRecv, sizeof(DataHeader), 0);
+	int nLen = static_cast<int>(recv(_cSock, szRecv, sizeof(DataHeader), 0));
 	DataHeader* header = reinterpret_cast<DataHeader*>(szRecv);
 	if (nLen <= 0)
 	{
@@ -115,7 +115,7 @@ int processor(SOCKET _cSock)
 		recv(_cSock, szRecv + sizeof(DataHeader),
 			header->dataLength - sizeof(DataHeader), 0);
 		//Login包含header所以把之前在缓存区的数据一并纳入login
-		LoginResult* login = reinterpret_cast<LoginResult*>(szRecv);
+		//LoginResult* login = reinterpret_cast<LoginResult*>(szRecv);
 		cout << "收到服务器消息：CMD_LOGIN_RESULT, 数据长度："
 			<< header->dataLength
 			<< endl;
@@ -127,7 +127,7 @@ int processor(SOCKET _cSock)
 		recv(_cSock, szRecv + sizeof(DataHeader),
 			header->dataLength - sizeof(DataHeader), 0);
 		//Login包含header所以把之前在缓存区的数据一并纳入login
-		LogoutResult* logout = reinterpret_cast<LogoutResult*>(szRecv);
+		//LogoutResult* logout = reinterpret_cast<LogoutResult*>(szRecv);
 		cout << "收到服务器消息：CMD_LOGOUT_RESULT, 数据长度："
 			<< header->dataLength
 			<< endl;
@@ -139,7 +139,7 @@ int processor(SOCKET _cSock)
 		recv(_cSock, szRecv + sizeof(DataHeader),
 			header->dataLength - sizeof(DataHeader), 0);
 		//Login包含header所以把之前在缓存区的数据一并纳入login
-		NewUserJoin* userJoin = reinterpret_cast<NewUserJoin*>(szRecv);
+		//NewUserJoin* userJoin = reinterpret_cast<NewUserJoin*>(szRecv);
 		cout << "收到服务器消息：CMD_NEW_USER_JOIN, 数据长度："
 			<< header->dataLength
 			<< endl;
@@ -242,7 +242,7 @@ int main()
 		FD_ZERO(&fdReads);
 		FD_SET(_sock, &fdReads);
 		timeval t = { 1,0 };
-		int ret = select(_sock+1, &fdReads, 0, 0, &t);
+		int ret = select(_sock + 1, &fdReads, 0, 0, &t);
 		if (ret < 0)
 		{
 			cout << "select任务结束1" << endl;
