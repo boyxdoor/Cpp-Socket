@@ -1,11 +1,22 @@
-#define WIN32_LEAN_AND_MEAN	//尽量避免头文件中库中的冲突
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN    //尽量避免头文件中库中的冲突
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <WinSock2.h>
 #include <Windows.h>
+#pragma comment(lib,"ws2_32.lib")    //仅windows平台可以
+#else
+#include <unistd.h> //uni std
+#include <arpa/inet.h>
+#include <string.h>
+#define SOCKET int
+#define INVALID_SOCKET  (SOCKET)(~0)
+#define SOCKET_ERROR            (-1)
+#include <sys/socket.h>
+#endif
+
 #include <iostream>
 #include <vector>
-
-#pragma comment(lib,"ws2_32.lib")	//仅windows平台可以
+#include <thread>
 
 using namespace std;
 
@@ -23,10 +34,10 @@ class DataHeader
 {
 public:
 	short dataLength;//数据长度
-	short cmd;		//命令
+	short cmd;        //命令
 };
 //DataPackage
-class Login: public DataHeader
+class Login : public DataHeader
 {
 public:
 	Login()
@@ -45,7 +56,7 @@ public:
 	{
 		dataLength = sizeof(LoginResult);
 		cmd = CMD_LOGIN_RESULT;
-		result = 0;	//默认0代表正常
+		result = 0;    //默认0代表正常
 	}
 	int result;
 };
@@ -92,11 +103,11 @@ int processor(SOCKET _cSock)
 	//缓冲区
 	char szRecv[1024] = {};
 	//5 接收客户端的请求,传来的包大于接收长度，后面的留到接下来接收
-	int nLen = recv(_cSock, szRecv, sizeof(DataHeader), 0);
+	int nLen = static_cast<int>(recv(_cSock, szRecv, sizeof(DataHeader), 0));
 	DataHeader* header = reinterpret_cast<DataHeader*>(szRecv);
 	if (nLen <= 0)
 	{
-		cout << "客户端<Socket="<<_cSock<<">已退出，任务结束。" << endl;
+		cout << "客户端<Socket=" << _cSock << ">已退出，任务结束。" << endl;
 		return -1;
 	}
 	switch (header->cmd)
@@ -109,7 +120,7 @@ int processor(SOCKET _cSock)
 			header->dataLength - sizeof(DataHeader), 0);
 		//Login包含header所以把之前在缓存区的数据一并纳入login
 		Login* login = reinterpret_cast<Login*>(szRecv);
-		cout << "收到客户端<Socket="<< _cSock
+		cout << "收到客户端<Socket=" << _cSock
 			<< ">请求：CMD_LOGIN, 数据长度：" << header->dataLength
 			<< ", userName=" << login->userName
 			<< ", PassWord=" << login->PassWord
@@ -143,14 +154,17 @@ int processor(SOCKET _cSock)
 	}
 	break;
 	}
+	return 0;
 }
 
 int main()
 {
+#ifdef _WIN32
 	//启动Windows socket 2.x环境
 	WORD ver = MAKEWORD(2, 2);
 	WSADATA dat;
 	WSAStartup(ver, &dat);
+#endif
 	//------------------
 	//用socket API建立简易TCP服务器
 	//1 建立一个socket
@@ -159,8 +173,13 @@ int main()
 	sockaddr_in _sin = {};
 	_sin.sin_family = AF_INET;
 	_sin.sin_port = htons(4567); //主机向网络转换host to net unsigned short
+#ifdef _WIN32
 	_sin.sin_addr.S_un.S_addr = INADDR_ANY; //inet_addr("127.0.0.1");绑定IP地址
-	if (SOCKET_ERROR == bind(_sock, (sockaddr*)&_sin, sizeof(sockaddr_in)))
+#else
+	_sin.sin_addr.s_addr = INADDR_ANY; //inet_addr("127.0.0.1");绑定IP地址
+#endif
+	//using namespace std之后，Mac系统默认bind为std::bind而不是::bind,会报错
+	if (SOCKET_ERROR == ::bind(_sock, reinterpret_cast<sockaddr*>(&_sin), sizeof(sockaddr_in)))
 	{
 		cout << "错误，绑定网络端口失败。\n";
 	}
@@ -169,7 +188,7 @@ int main()
 		cout << "绑定网络端口成功。\n";
 	}
 	//3 listen 监听网络端口
-	if(SOCKET_ERROR==listen(_sock, 5))
+	if (SOCKET_ERROR == listen(_sock, 5))
 	{
 		cout << "错误，监听网络端口失败。\n";
 	}
@@ -197,16 +216,21 @@ int main()
 		FD_SET(_sock, &fdExp);
 
 		//每一次循环将队列中的客户端加入集合
-		for (int n = static_cast<int>(g_clients.size() - 1) ; n >=0 ; n--)
+		for (int n = static_cast<int>(g_clients.size() - 1); n >= 0; n--)
 		{
 			FD_SET(g_clients[n], &fdRead);
 		}
-
+		//最大描述符
+		SOCKET maxsock = _sock;
+		for (int n = static_cast<int>(g_clients.size() - 1); n >= 0; n--)
+		{
+			maxsock = max(g_clients[n], maxsock);
+		}
 		timeval t = { 1,0 };
 		//为兼容其他操作系统的 伯克利 socket,Windows下select()的第一个参数无意义;
 		//select()第一个参数nfds是一个整数，是指fd_set集合中描述符最大值+1;
 		//对应TCP协议中，接收方发送确认号是已发送数据序号的下一个。
-		int ret = select(_sock+1, &fdRead, &fdWrite, &fdExp,&t );
+		int ret = select(maxsock + 1, &fdRead, &fdWrite, &fdExp, &t);
 
 		//ret=0无数据
 		if (ret < 0)
@@ -223,9 +247,12 @@ int main()
 			sockaddr_in clientAddr = {};
 			int nAddrLen = sizeof(sockaddr_in);
 			SOCKET _cSock = INVALID_SOCKET;
-
-			//客户端_cSock,服务端_sock
+#ifdef _WIN32
 			_cSock = accept(_sock, reinterpret_cast<sockaddr*>(&clientAddr), &nAddrLen);
+			//客户端_cSock,服务端_sock
+#else
+			_cSock = accept(_sock, reinterpret_cast<sockaddr*>(&clientAddr), reinterpret_cast<socklen_t *>(&nAddrLen));
+#endif
 			if (INVALID_SOCKET == _cSock)
 			{
 				cout << "错误，接收到无效客户端SOCKET。" << endl;
@@ -242,37 +269,46 @@ int main()
 				//inet_ntoa()功能是将网络地址转换成“.”点隔的字符串格式
 				cout << "新客户端加入：socket = " << _cSock << ",IP = " << inet_ntoa(clientAddr.sin_addr) << endl;
 			}
-			
+
 		}
 
-		//if(nLen>=sizeof(DataHeader)){}
-		
-		for (size_t n = 0; n < fdRead.fd_count ; n++)
+		for (int n = static_cast<int>(g_clients.size() - 1); n >= 0; n--)
 		{
-			//6 处理请求
-			if(-1==processor(fdRead.fd_array[n]))
+			if (FD_ISSET(g_clients[n], &fdRead))
 			{
-				//处理成功后队列里移除此客户端
-				auto iter = find(g_clients.begin(), g_clients.end(), fdRead.fd_array[n]);
-				if (iter != g_clients.end())
+				if (-1 == processor(g_clients[n]))
 				{
-					g_clients.erase(iter);
+					//处理成功后队列里移除此客户端
+					auto iter = find(g_clients.begin(), g_clients.end(), g_clients[n]);
+					if (iter != g_clients.end())
+					{
+						g_clients.erase(iter);
+					}
 				}
 			}
 		}
 		//cout << "空闲时间处理其他业务.." << endl;
 	}
+#ifdef _WIN32
 	//清理已链接的客户端套接字
 	for (size_t n = g_clients.size() - 1; n >= 0; n--)
 	{
 		closesocket(g_clients[n]);
 	}
-
 	//8 关闭套接字closesocket
 	closesocket(_sock);
 	//------------------
 	//清除Windows socket环境
 	WSACleanup();
+#else
+	//清理已链接的客户端套接字
+	for (size_t n = g_clients.size() - 1; n >= 0; n--)
+	{
+		close(g_clients[n]);
+	}
+	//8 关闭套接字
+	close(_sock);
+#endif
 	cout << "已退出。" << endl;
 	getchar();
 	return 0;
